@@ -1,0 +1,378 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pouw-net
+  labels:
+    app: pouw
+spec:
+  clusterIP: None
+  selector:
+    app: pouw
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pouw-miner
+spec:
+  serviceName: "pouw-miners"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pouw
+  template:
+    metadata:
+      labels:
+        app: pouw
+    spec:
+      volumes:
+      - name: pouw-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-pv-claim  
+      - name: pouw-bucket-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-bucket-pv-claim
+      - name: paicoin-datadir
+        emptyDir: {}
+      - name: paicoin-config
+        configMap:
+         name: paicoin-config-map
+         items:
+          - key: chainparams.conf
+            path: chainparams.conf
+          - key: paicoin.conf
+            path: paicoin.conf
+      containers:
+      - name: pouw-miner
+        image: pouw-consensus:dev
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        - mountPath: /root/.paicoin
+          name: paicoin-config
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo $MY_POD_IP $MY_POD_NAME $MY_ROLE >> /usr/share/pouw-data/nodes"]
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","sed -i /^$MY_POD_IP/d /usr/share/pouw-data/nodes"]
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_ROLE
+          value: "miner"
+        - name: PAICOIND_IP
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: PAICOIND_IP
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: REDIS_PORT
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+        command: ["/bin/sh", "-c"]
+        args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && python3.7 /opt/main-iteration/pai/pouw/nodes/decentralized/worker.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT --server-ip $PAICOIND_IP --paicoin-cfg-file /root/.paicoin/paicoin.conf --debug True"]
+        imagePullPolicy: Never
+      - name: pouw-miner-verifier
+        image: pouw-consensus:dev
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        env:
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: REDIS_PORT
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+        command: ["/bin/sh", "-c"]
+        args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && python3.7 /opt/main-iteration/pai/pouw/verification/server.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT"]
+        imagePullPolicy: Never
+      - name: pouw-miner-blockchain
+        image: pouw-blockchain:dev
+        command: ["/bin/sh", "-c"]
+        args: ["paicoind -mine-genesis-block && paicoind -add-nodes=/usr/share/pouw-data/nodes -own-ip=$MY_POD_IP"]
+        volumeMounts:
+          - mountPath: "/usr/share/pouw-data"
+            name: pouw-pv-storage
+          - mountPath: /root/data
+            name: paicoin-datadir
+          - mountPath: /root/.paicoin
+            name: paicoin-config
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        imagePullPolicy: Never
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pouw-supervisor
+spec:
+  serviceName: "pouw-supervisors"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pouw
+  template:
+    metadata:
+      labels:
+        app: pouw
+    spec:
+      volumes:
+      - name: pouw-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-pv-claim
+      - name: pouw-bucket-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-bucket-pv-claim
+      - name: redis-datadir
+        emptyDir: {}
+      - name: redis-conf
+        configMap:
+          name: redis-config-map
+          items:
+          - key: redis.conf
+            path: redis.conf
+      - name: paicoin-datadir
+        emptyDir: {}
+      - name: paicoin-config
+        configMap:
+         name: paicoin-config-map
+         items:
+          - key: chainparams.conf
+            path: chainparams.conf
+          - key: paicoin.conf
+            path: paicoin.conf
+      containers:
+      - name: pouw-supervisor
+        image: pouw-consensus:dev
+        command: ["/bin/sh", "-c"]
+        args: [ 'while true; do sleep 30; echo "Supervising..."; done;' ]
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo $MY_POD_IP $MY_POD_NAME $MY_ROLE >> /usr/share/pouw-data/nodes"]
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","sed -i /^$MY_POD_IP/d /usr/share/pouw-data/nodes"]
+        imagePullPolicy: Never
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_ROLE
+          value: "supervisor"
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+      - name: pouw-supervisor-redis
+        image: redis:5.0.5-alpine3.10
+        ports:
+          - containerPort: 6379
+        command:
+          - redis-server
+          - "/conf/redis.conf"
+        volumeMounts:
+          - mountPath: /datadir
+            name: redis-datadir
+          - mountPath: /conf
+            name: redis-conf
+        imagePullPolicy: IfNotPresent
+      - name: pouw-supervisor-verifier
+        image: pouw-consensus:dev
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        env:
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: REDIS_PORT
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+        command: ["/bin/sh", "-c"]
+        args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && python3.7 /opt/main-iteration/pai/pouw/verification/server.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT"]
+        imagePullPolicy: Never
+      - name: pouw-supervisor-blockchain
+        image: pouw-blockchain:dev
+        command: ["/bin/sh", "-c"]
+        args: ["paicoind -mine-genesis-block && paicoind -add-nodes=/usr/share/pouw-data/nodes -own-ip=$MY_POD_IP"]
+        volumeMounts:
+          - mountPath: "/usr/share/pouw-data"
+            name: pouw-pv-storage
+          - mountPath: /root/data
+            name: paicoin-datadir
+          - mountPath: /root/.paicoin
+            name: paicoin-config
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        imagePullPolicy: Never
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pouw-client
+spec:
+  serviceName: "pouw-clients"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pouw
+  template:
+    metadata:
+      labels:
+        app: pouw
+    spec:
+      volumes:
+      - name: pouw-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-pv-claim
+      - name: pouw-bucket-pv-storage
+        persistentVolumeClaim:
+          claimName: pouw-bucket-pv-claim
+      - name: paicoin-datadir
+        emptyDir: {}
+      - name: paicoin-config
+        configMap:
+         name: paicoin-config-map
+         items:
+          - key: chainparams.conf
+            path: chainparams.conf
+          - key: paicoin.conf
+            path: paicoin.conf
+      - name: run-client
+        configMap:
+         name: run-client-map
+         items:
+          - key: run-client.sh
+            path: run-client.sh
+          - key: task-definition.yaml
+            path: task-definition.yaml
+      containers:
+      - name: pouw-client
+        image: pouw-consensus:dev
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        - mountPath: "/app"
+          name: run-client
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo $MY_POD_IP $MY_POD_NAME $MY_ROLE >> /usr/share/pouw-data/nodes"]
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","sed -i /^$MY_POD_IP/d /usr/share/pouw-data/nodes"]
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_ROLE
+          value: "client"
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: REDIS_PORT
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+        command: ["/bin/sh", "-c"]
+        args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && /bin/bash -c \"trap : TERM INT; sleep infinity & wait\""]
+        imagePullPolicy: Never
+      - name: pouw-client-verifier
+        image: pouw-consensus:dev
+        volumeMounts:
+        - mountPath: "/usr/share/pouw-data"
+          name: pouw-pv-storage
+        - mountPath: "/usr/share/pouw-bucket"
+          name: pouw-bucket-pv-storage
+        env:
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: REDIS_PORT
+        - name: POUW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: settings-map
+              key: POUW_BUCKET
+        command: ["/bin/sh", "-c"]
+        args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && python3.7 /opt/main-iteration/pai/pouw/verification/server.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT"]
+        imagePullPolicy: Never
+      - name: pouw-client-blockchain
+        image: pouw-blockchain:dev
+        command: ["/bin/sh", "-c"]
+        args: ["paicoind -mine-genesis-block && paicoind -add-nodes=/usr/share/pouw-data/nodes -own-ip=$MY_POD_IP"]
+        volumeMounts:
+          - mountPath: "/usr/share/pouw-data"
+            name: pouw-pv-storage
+          - mountPath: /root/data
+            name: paicoin-datadir
+          - mountPath: /root/.paicoin
+            name: paicoin-config
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        imagePullPolicy: Never
