@@ -2,8 +2,6 @@
 This solution enables us to run PoUW in a Kubernetes cluster. The instructions are for Mac OS X, however except installation of prerequisites, everything else is similar.
 
 ## Install prerequisites:
-You must create the folder `ssh-keys` under the root folder and put a copy of your `id_rsa` file in it. 
-
 ```
 brew install bash-completion
 brew cask install docker
@@ -24,7 +22,7 @@ First, we'll build the blockchain image:
 
 Then, we will build the consensus (Python code) image:
 ```
-./build-image.sh --role=consensus --version=dev --passphrase=<your_ssh_password>
+./build-image.sh --role=consensus --version=dev
 ```
 
 ## Start the Minikube cluster
