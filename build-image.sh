@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-GIT_REPO=gitlab.int.oben.me
+GIT_REPO=github.com
 WORKER_BRANCH="k8s"
 PAICOIN_BRANCH="pouw-q4"
 
