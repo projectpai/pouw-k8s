@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 GIT_REPO=github.com
-WORKER_BRANCH="k8s"
+WORKER_BRANCH="master"
 PAICOIN_BRANCH="pouw-q4"
 
 for i in "$@"
