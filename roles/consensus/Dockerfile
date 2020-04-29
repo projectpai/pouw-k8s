@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     git clone https://github.com/projectpai/pouw-main-iteration --branch ${WORKER_BRANCH} /opt/main-iteration
 
 RUN cd /opt/main-iteration && \
+    python3.7 -m pip install --upgrade pip && \
     sed -i '1s/boto3//;' requirements.txt && \
     python3.7 -m pip install -r requirements.txt && \
     python3.7 -m pip install -U setuptools && \
