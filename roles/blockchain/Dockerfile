@@ -1,8 +1,8 @@
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 ARG PAICOIN_BRANCH="pouw-q4"
 
 RUN apt-get update && apt-get install -y software-properties-common && \
-    add-apt-repository ppa:bitcoin/bitcoin -y && \
+    add-apt-repository ppa:rock-core/qt4 -y && \
     apt-get update && \
     apt-get install -y \
     python3 \
@@ -22,8 +22,6 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     libtool \
     bsdmainutils \
     libevent-dev \
-    libdb4.8 \
-    libdb4.8++-dev \
     curl \
     ssh \
     git
@@ -33,7 +31,7 @@ RUN  git clone -b ${PAICOIN_BRANCH} --single-branch https://github.com/projectpa
 ADD scripts/berkley.sh /opt/paicoin/berkley.sh
 
 RUN cd /tmp && \
-    git clone -b $(curl -L https://grpc.io/release) --single-branch https://github.com/grpc/grpc && \
+    git clone -b v1.30.2 --single-branch https://github.com/grpc/grpc && \
     cd grpc && \
     git submodule update --init && \
     CXXFLAGS='-Wno-error' make -j $(lscpu | grep -E '^CPU\(s)' | awk '{print $2}') HAS_SYSTEM_PROTOBUF=false && \
