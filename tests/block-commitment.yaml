@@ -66,7 +66,7 @@ spec:
           name: settings-map
           key: POUW_BUCKET
     command: ["/bin/sh", "-c"]
-    args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && sed -i 's/(BLOCK_COMMITMENT_INERATIONS_ANNOUNCED/(4/g' /opt/main-iteration/pai/pouw/nodes/decentralized/worker.py && cd /opt/main-iteration && python3.7 setup.py develop --uninstall && python3.7 setup.py develop && python3.7 /opt/main-iteration/pai/pouw/nodes/decentralized/worker.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT --server-ip $PAICOIND_IP --paicoin-cfg-file /root/.paicoin/paicoin.conf --debug True"]
+    args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && sed -i 's/(BLOCK_COMMITMENT_INERATIONS_ANNOUNCED/(4/g' /opt/main-iteration/pai/pouw/nodes/decentralized/worker.py && cd /opt/main-iteration && python3 setup.py develop --uninstall && python3 setup.py develop && python3 /opt/main-iteration/pai/pouw/nodes/decentralized/worker.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT --server-ip $PAICOIND_IP --paicoin-cfg-file /root/.paicoin/paicoin.conf --debug True"]
     imagePullPolicy: Never
   - name: pouw-miner-verifier
     image: pouw-consensus:dev
@@ -87,7 +87,7 @@ spec:
           name: settings-map
           key: POUW_BUCKET
     command: ["/bin/sh", "-c"]
-    args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && sed -i 's/error_code, reason = verify_block_commitment(conn, msg_id, worker_id, block_header)/error_code, reason = None, None/g' /opt/main-iteration/pai/pouw/verification/verifier.py && cd /opt/main-iteration && python3.7 setup.py develop --uninstall && python3.7 setup.py develop && python3.7 /opt/main-iteration/pai/pouw/verification/server.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT"]
+    args: ["while [ -z \"${REDIS_HOST}\" ]; do REDIS_HOST=$(sed '/supervisor/!d;q' /usr/share/pouw-data/nodes | sed 's/ .*//'); sleep 5; done && echo \"export REDIS_HOST=\"$REDIS_HOST\"\" >> ~/.bashrc && sed -i 's/error_code, reason = verify_block_commitment(conn, msg_id, worker_id, block_header)/error_code, reason = None, None/g' /opt/main-iteration/pai/pouw/verification/verifier.py && cd /opt/main-iteration && python3 setup.py develop --uninstall && python3 setup.py develop && python3 /opt/main-iteration/pai/pouw/verification/server.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT"]
     imagePullPolicy: Never
   - name: pouw-miner-blockchain
     image: pouw-blockchain:dev

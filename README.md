@@ -1,54 +1,57 @@
 # How to develop and test with Kubernetes
-This solution enables us to run PoUW in a Kubernetes cluster. The instructions are for Mac OS X, however except installation of prerequisites, everything else is similar.
+This solution enables us to run PoUW in a Kubernetes cluster.
 
-## Install prerequisites:
-```
-brew install bash-completion
-brew cask install docker
-brew install kubectl
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-darwin-amd64 \
-  && chmod +x minikube
-sudo mv minikube /usr/local/bin
-```
+## Prerequisites:
+* Minikube
 
 ## Build the PoUW images
 
-We need the basic PoUW images. This has to be done on your development machine (not inside Minikube) for performance reasons.
+We need the PoUW images for the blockchain and for the modified consensus part. This has to be done on your development machine (not inside Minikube) for performance reasons.
 
-First, we'll build the blockchain image:
+### On MacOS/Linux
 ```
 ./build-image.sh --role=blockchain --version=dev
+./build-image.sh --role=consensus --version=dev
 ```
 
-Then, we will build the consensus (Python code) image:
+### On Windows
 ```
-./build-image.sh --role=consensus --version=dev
+docker build --no-cache --build-arg PAICOIN_BRANCH="pouw-q4" --build-arg WORKER_BRANCH="master" --build-arg CONTAINER_VERSION="1.0" --build-arg GIT_REPO="github.com" --tag "pouw-blockchain:dev" -f "roles/blockchain/Dockerfile" .
+docker build --no-cache --build-arg PAICOIN_BRANCH="pouw-q4" --build-arg WORKER_BRANCH="master" --build-arg CONTAINER_VERSION="1.0" --build-arg GIT_REPO="github.com" --tag "pouw-consensus:dev" -f "roles/consensus/Dockerfile" .
 ```
 
 ## Start the Minikube cluster
 
-Start the local Kubernetes cluster (please note that the `--vm-driver` option is optional):
 ```
-minikube start --memory 4096 --cpus=2 --vm-driver=parallels
+minikube start --memory 8192 --cpus=2
 ```
 
-We need the Docker internal to MiniKube. You need to run this command to be able to fetch images from the local disk later:
+We need the Docker from the MiniKube. You need to run this command to be able to transfer images from the local disk:
+
+On MacOS/Linux:
 ```
 eval $(minikube docker-env)
 ```
 
+
+On Windows Powershell:
+```
+minikube docker-env
+& minikube -p minikube docker-env | Invoke-Expression
+```
+
 ## Copy the PoUW images inside Minikube
 
-In a fresh terminal, we will save the PoUW images using the local installation of Docker:
+In another terminal, we will save the PoUW images using the local installation of Docker:
 ```
 docker save pouw-blockchain:dev > img_blockchain
 docker save pouw-consensus:dev > img_consensus
 ```
 
-In the terminal with Minikube run these commands:
+In the previous terminal with Minikube run these commands (both terminals should be in the same folder to be able to refer to saved images):
 ```
-docker load < img_blockchain
-docker load < img_consensus
+docker load --input img_blockchain
+docker load --input img_consensus
 ```
 
 You can see all images loaded into the Minikube local Docker by issuing the folowing command:
@@ -58,7 +61,7 @@ docker image ls
 
 ## Configure settings
 
-We will create a ConfigMap holding some environment variables. To do so, we'll run this command:
+Inside Minikube, we will create a ConfigMap holding some environment variables. To do so, we'll run this command:
 ```
 kubectl create configmap settings-map --from-env-file=env.list
 ```
@@ -80,7 +83,7 @@ We need a persistent volume to hold temporary data that is shared among all pods
 
 First SSH into the Minikube node:
 ```
-ssh -i ~/.minikube/machines/minikube/id_rsa docker@$(minikube ip)
+minikube ssh
 ```
 
 And create the folders `pouw-data`:
@@ -104,9 +107,15 @@ kubectl create configmap run-client-map --from-file=scripts/run-client.sh --from
 ````
 
 ## Deploying the PoUW images to the Minikube cluster
-For this operation you need 3 terminals open, and in each you should previously have run the command:
+For this operation you need 3 terminals open, and in each you should previously have run the command on MacOS/Linux:
 ```
 eval $(minikube docker-env)
+```
+
+On Windows Powershell:
+```
+minikube docker-env
+& minikube -p minikube docker-env | Invoke-Expression
 ```
 
 1. The first terminal is used for monitoring the PoUW cluster. Here you should run this command:
@@ -140,7 +149,7 @@ kubectl exec -it pouw-client-0 -c pouw-client -- /bin/bash
 
 Then you can start the training using the provided client script:
 ````
-sh run-client.sh
+python3 /opt/main-iteration/pai/pouw/nodes/decentralized/client.py --redis-host $REDIS_HOST --redis-port $REDIS_PORT --client-task-definition-path task-definition.yaml --use-continuous-training
 ````
 
 And you can view the progress of training using on miner 1, for example:
