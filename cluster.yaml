@@ -204,7 +204,7 @@ spec:
               name: settings-map
               key: POUW_BUCKET
       - name: pouw-supervisor-redis
-        image: redis:5.0.5-alpine3.10
+        image: redis:alpine
         ports:
           - containerPort: 6379
         command:

@@ -23,7 +23,7 @@ docker build --no-cache --build-arg PAICOIN_BRANCH="pouw-q4" --build-arg WORKER_
 ## Start the Minikube cluster
 
 ```
-minikube start --memory 8192 --cpus=2
+minikube start --memory 16384 --cpus=4 --driver=vmware
 ```
 
 We need the Docker from the MiniKube. You need to run this command to be able to transfer images from the local disk:
